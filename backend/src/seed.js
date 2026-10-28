@@ -28,11 +28,16 @@ try {
     User.findOneAndUpdate({ email }, { $set: { name, email, role, passwordHash } }, { upsert: true, new: true, runValidators: true }),
   ));
   const [teacher, ...students] = users;
-  const priorQuizzes = await Quiz.find({ teacherId: teacher._id }).select("_id");
-  await Promise.all([
-    Attempt.deleteMany({ quizId: { $in: priorQuizzes.map((quiz) => quiz._id) } }),
-    Quiz.deleteMany({ teacherId: teacher._id }),
-  ]);
+  const demoQuizTitles = ["Quick Knowledge Check", "Foundations Challenge"];
+  const priorDemoQuizzes = await Quiz.find({
+    teacherId: teacher._id,
+    title: { $in: demoQuizTitles },
+  }).select("_id");
+  if (priorDemoQuizzes.length) {
+    const demoQuizIds = priorDemoQuizzes.map((quiz) => quiz._id);
+    await Attempt.deleteMany({ quizId: { $in: demoQuizIds } });
+    await Quiz.deleteMany({ _id: { $in: demoQuizIds } });
+  }
 
   const questionSet = [
     { text: "Which planet is known as the Red Planet?", type: "single", points: 2, options: [{ text: "Mars", isCorrect: true }, { text: "Venus", isCorrect: false }, { text: "Jupiter", isCorrect: false }] },

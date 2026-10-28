@@ -66,7 +66,7 @@ Public registration creates student users only. Teacher accounts are provisioned
 - Quiz leaderboard sorted by score descending and elapsed time ascending.
 - Teacher analytics for completed attempt count, average score, and question error rates sorted from most-missed to least-missed.
 - Responsive teacher dashboard, quiz builder, analytics, student player, results, and leaderboard.
-- Eight Jest/Supertest integration tests backed by a dedicated `mongodb-memory-server` instance.
+- Nine Jest/Supertest integration tests backed by a dedicated `mongodb-memory-server` instance.
 
 ## Mongoose data model
 
@@ -82,10 +82,11 @@ Attempt ── questionOrder[] / optionOrder[] / answers[]
 
 ## Important security decisions
 
-- **Server clock owns deadlines:** At attempt creation the API sets `expiresAt = min(startedAt + timeLimitSeconds, quiz.endTime)`. The UI countdown uses the returned `serverNow` and expiry for display only. Every answer save checks `Date.now()` on the API and rejects a late write with `403 { "error": "Time limit exceeded for this attempt" }`. Submission grades persisted answers whose server `savedAt` is not after expiry.
+- **Server clock owns deadlines:** At attempt creation the API sets `expiresAt = min(startedAt + timeLimitSeconds, quiz.endTime)`. The UI countdown uses the returned `serverNow` and expiry for display only. Every answer save checks `Date.now()` on the API and rejects a late write with `403 { "error": "Time limit exceeded for this attempt" }`. Submission records whether the attempt is expired and grades only persisted answers whose server `savedAt` is not after expiry.
 - **Answer-key stripping:** Student-facing quiz and attempt DTOs are built with explicit serializers that include option IDs and text only. They never serialize `isCorrect`. The results endpoint returns a score immediately after submission, and only adds correct option IDs and the question breakdown when server time is strictly later than the quiz `endTime`.
 - **Validation and role checks:** Zod validates request bodies and ObjectId route parameters. Mongoose schema validation is a second boundary. Teachers can manage only their own quizzes; registration cannot select a teacher role.
 - **Attempt shuffling:** The server shuffles IDs once when an attempt is created, stores the orders on the attempt, and reconstructs the same order on reload.
+- **Safe reseeding:** The demo seed script only replaces its two named demo quizzes and their associated attempts; it does not delete other quizzes owned by the demo teacher.
 - **Isolated tests:** `mongodb-memory-server` gives Jest a fresh in-memory MongoDB instance, independent from local or production databases.
 
 ## Project layout

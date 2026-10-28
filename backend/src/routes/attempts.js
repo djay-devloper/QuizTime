@@ -150,13 +150,22 @@ router.post("/attempts/:attemptId/submit", validateObjectId("attemptId"), asyncR
   if (!attempt.submittedAt) {
     const quiz = await Quiz.findById(attempt.quizId);
     if (!quiz) return res.status(404).json({ error: "Quiz not found" });
+    const submittedAt = new Date();
+    const expired = submittedAt.getTime() > attempt.expiresAt.getTime();
     attempt.score = gradeAttempt(attempt, quiz);
-    attempt.submittedAt = new Date();
+    attempt.submittedAt = submittedAt;
     await attempt.save();
+    return res.json({
+      submittedAt: attempt.submittedAt,
+      score: attempt.score,
+      expired,
+      timeTakenSeconds: Math.max(0, (attempt.submittedAt.getTime() - attempt.startedAt.getTime()) / 1000),
+    });
   }
   return res.json({
     submittedAt: attempt.submittedAt,
     score: attempt.score,
+    expired: attempt.submittedAt.getTime() > attempt.expiresAt.getTime(),
     timeTakenSeconds: Math.max(0, (attempt.submittedAt.getTime() - attempt.startedAt.getTime()) / 1000),
   });
 }));

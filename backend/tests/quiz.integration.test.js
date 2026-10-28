@@ -82,6 +82,33 @@ describe("Timed Quiz API (MongoDB Memory Server)", () => {
     expect(response.body.error).toBe("Time limit exceeded for this attempt");
   });
 
+  test("finalizes an expired attempt using only answers saved before expiry", async () => {
+    const started = await createAttempt();
+    const question = started.body.questions.find((item) => item.type === "single");
+    const quiz = await Quiz.findById(quizId);
+    const correct = quiz.questions.id(question.id).options.find((option) => option.isCorrect);
+    const saved = await request(app)
+      .patch(`/api/attempts/${started.body.id}/answer`)
+      .set("Authorization", `Bearer ${studentTokens[0]}`)
+      .send({ questionId: question.id, optionIds: [String(correct._id)] });
+    expect(saved.status).toBe(200);
+    const expiredAt = new Date(Date.now() - 5000);
+    await Attempt.findByIdAndUpdate(started.body.id, {
+      $set: {
+        expiresAt: expiredAt,
+        "answers.0.savedAt": new Date(expiredAt.getTime() - 1000),
+      },
+    });
+    const persisted = await Attempt.findById(started.body.id);
+    expect(persisted.answers[0].savedAt.getTime()).toBeLessThanOrEqual(persisted.expiresAt.getTime());
+    const submitted = await request(app)
+      .post(`/api/attempts/${started.body.id}/submit`)
+      .set("Authorization", `Bearer ${studentTokens[0]}`);
+    expect(submitted.status).toBe(200);
+    expect(submitted.body.expired).toBe(true);
+    expect(submitted.body.score).toBe(2);
+  });
+
   test("does not leak answer keys through quiz, start, or resumed-attempt responses", async () => {
     const quiz = await request(app).get(`/api/quizzes/${quizId}`).set("Authorization", `Bearer ${studentTokens[0]}`);
     expect(quiz.status).toBe(200);
@@ -172,6 +199,26 @@ describe("Timed Quiz API (MongoDB Memory Server)", () => {
   test("seeds the demo accounts, active quiz, and closed attempts repeatably", async () => {
     const seedScript = resolve(process.cwd(), "src/seed.js");
     const environment = { ...process.env, MONGODB_URI: mongo.getUri() };
+    const demoTeacher = await User.create({
+      name: "Original Demo Teacher",
+      email: "teacher@demo.com",
+      passwordHash: await bcrypt.hash("old-password", 4),
+      role: "teacher",
+    });
+    const unrelatedQuiz = await Quiz.create({
+      teacherId: demoTeacher._id,
+      title: "Teacher's own quiz",
+      timeLimitSeconds: 120,
+      startTime: new Date(Date.now() - 60000),
+      endTime: new Date(Date.now() + 3600000),
+      questions: quizPayload().questions,
+    });
+    await Attempt.create({
+      quizId: unrelatedQuiz._id,
+      studentId: students[0]._id,
+      startedAt: new Date(),
+      expiresAt: new Date(Date.now() + 120000),
+    });
     execFileSync(process.execPath, [seedScript], { cwd: process.cwd(), env: environment, stdio: "pipe" });
     const firstSeedCounts = {
       users: await User.countDocuments(),
@@ -183,10 +230,13 @@ describe("Timed Quiz API (MongoDB Memory Server)", () => {
     expect(await Quiz.countDocuments()).toBe(firstSeedCounts.quizzes);
     expect(await Attempt.countDocuments()).toBe(firstSeedCounts.attempts);
     expect(firstSeedCounts.users).toBe(8);
+    expect(firstSeedCounts.quizzes).toBe(4);
+    expect(await Quiz.exists({ _id: unrelatedQuiz._id })).toBeTruthy();
+    expect(await Attempt.exists({ quizId: unrelatedQuiz._id, studentId: students[0]._id })).toBeTruthy();
     const quizzes = await Quiz.find().sort({ title: 1 });
-    expect(quizzes).toHaveLength(3);
+    expect(quizzes.filter((quiz) => quiz.title === "Quick Knowledge Check")).toHaveLength(1);
     expect(quizzes.find((quiz) => quiz.title === "Quick Knowledge Check").questions).toHaveLength(5);
-    expect(await Attempt.countDocuments()).toBe(3);
+    expect(await Attempt.countDocuments()).toBe(4);
     expect(await User.exists({ email: "teacher@demo.com", role: "teacher" })).toBeTruthy();
   });
 });
