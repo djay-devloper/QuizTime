@@ -1,11 +1,19 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import User from "./models/User.js";
 import Quiz from "./models/Quiz.js";
 import Attempt from "./models/Attempt.js";
 
-if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI must be configured");
+const backendDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+dotenv.config({ path: resolve(backendDirectory, ".env") });
+
+if (!process.env.MONGODB_URI) {
+  console.error("MONGODB_URI is missing. Copy backend/.env.example to backend/.env and set your MongoDB connection string.");
+  process.exit(1);
+}
 await mongoose.connect(process.env.MONGODB_URI);
 
 try {

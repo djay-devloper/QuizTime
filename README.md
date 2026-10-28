@@ -4,13 +4,13 @@ QuizTime is a JavaScript-only full-stack application for teacher-authored timed 
 
 ## Quick start
 
-Requirements: Node.js 20+, npm, and MongoDB 6+ running locally (or a MongoDB Atlas URI).
+Requirements: Node.js 20+, npm, and a reachable MongoDB 6+ server. This repository does not bundle MongoDB; use a local MongoDB service or a MongoDB Atlas connection string.
 
 ```bash
 npm install
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
-# Set a long, unique JWT_SECRET in backend/.env.
+# Edit backend/.env: set JWT_SECRET and ensure MONGODB_URI points to a running MongoDB.
 npm run seed
 npm run dev
 ```
@@ -29,7 +29,18 @@ Production frontend build:
 npm run build
 ```
 
-The backend reads `PORT`, `MONGODB_URI`, and `JWT_SECRET` from `backend/.env`. The Vite client reads `VITE_API_URL` from `frontend/.env`. Neither environment file should be committed. `.env.example` files document the settings.
+The backend reads `PORT`, `MONGODB_URI`, and `JWT_SECRET` from `backend/.env` regardless of the directory from which Node is launched. The Vite client reads `VITE_API_URL` from `frontend/.env`. Neither environment file should be committed. `.env.example` files document the settings.
+
+### Backend won't start?
+
+The API starts only after it can connect to MongoDB. A clean checkout has no `backend/.env` and does not include a MongoDB server, so configure both before running the backend:
+
+1. Copy `backend/.env.example` to `backend/.env`.
+2. Set `JWT_SECRET` to a long random value.
+3. Set `MONGODB_URI` to a reachable MongoDB service. For local MongoDB, the default is `mongodb://127.0.0.1:27017/quiztime`; start your local MongoDB service first. For Atlas, use the connection string provided by your cluster and allow your machine's IP in its network access settings.
+4. Run `npm run seed`, then `npm run dev`.
+
+The tests do not need a local MongoDB daemon; they use `mongodb-memory-server`.
 
 ## Demo logins
 
@@ -55,7 +66,7 @@ Public registration creates student users only. Teacher accounts are provisioned
 - Quiz leaderboard sorted by score descending and elapsed time ascending.
 - Teacher analytics for completed attempt count, average score, and question error rates sorted from most-missed to least-missed.
 - Responsive teacher dashboard, quiz builder, analytics, student player, results, and leaderboard.
-- Seven Jest/Supertest integration tests backed by a dedicated `mongodb-memory-server` instance.
+- Eight Jest/Supertest integration tests backed by a dedicated `mongodb-memory-server` instance.
 
 ## Mongoose data model
 
